@@ -3,19 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Magic Calc Pro</title>
+    <title>Magic Calc Ultra</title>
     <style>
         body { background-color: #000; display: flex; justify-content: center; align-items: flex-end; height: 100vh; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; -webkit-user-select: none; }
         .calc-container { width: 100%; max-width: 400px; padding-bottom: 40px; padding-left: 20px; padding-right: 20px; box-sizing: border-box; }
         
-        /* 显示区域 */
         .display-wrapper { display: flex; flex-direction: column; align-items: flex-end; padding-right: 10px; margin-bottom: 15px; min-height: 160px; justify-content: flex-end; }
-        .history-display { color: #a5a5a5; font-size: 24px; min-height: 30px; margin-bottom: 5px; letter-spacing: 1px; }
-        .main-display { color: white; font-size: 80px; font-weight: 300; letter-spacing: -2px; line-height: 1; transition: all 0.1s; }
+        .history-display { color: #888; font-size: 22px; min-height: 30px; margin-bottom: 8px; letter-spacing: 0.5px; font-weight: 400; }
+        .main-display { color: white; font-size: 80px; font-weight: 300; letter-spacing: -2px; line-height: 1; transition: all 0.05s; }
 
-        /* 按钮区域 */
         .buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-        button { border: none; border-radius: 50%; height: 75px; width: 75px; font-size: 30px; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: filter 0.2s; -webkit-tap-highlight-color: transparent; }
+        button { border: none; border-radius: 50%; height: 75px; width: 75px; font-size: 30px; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; }
         button:active { filter: brightness(1.5); }
         .num { background-color: #333; color: white; }
         .op { background-color: #f1a33c; color: white; font-size: 35px; }
@@ -37,8 +35,8 @@
     </div>
     <div class="buttons">
         <button class="special" onclick="reset()">AC</button>
-        <button class="special" onclick="fakeKey()">+/-</button>
-        <button class="special" onclick="fakeKey()">%</button>
+        <button class="special" onclick="fakeStep()">+/-</button>
+        <button class="special" onclick="fakeStep()">%</button>
         <button class="op" onclick="handleOp('÷')">÷</button>
         
         <button class="num" onclick="handleNum('7')">7</button>
@@ -57,114 +55,122 @@
         <button class="op" onclick="handleOp('+')">+</button>
         
         <button class="num zero" onclick="handleNum('0')">0</button>
-        <button class="num" onclick="fakeKey()">.</button>
+        <button class="num" onclick="fakeStep()">.</button>
         <button class="op" onclick="calculate()">=</button>
     </div>
 </div>
 
 <script>
-    let currentInput = "0";
-    let historyText = "";
-    let firstPart = "";
-    let secondPart = "";
-    let magicA = "";
-    let magicIndex = 0;
-    let isMagicMode = false;
-    let hasTriggered = false;
+    let mainVal = "0";      // 主显示屏内容
+    let historyVal = "";    // 灰色算式内容
+    let firstNum = "";      // 记录第一个四位数
+    let secondNum = "";     // 记录第二个五位数
+    let targetA = "";       // 补差数 A
+    let aPtr = 0;           // A 的索引指针
+    let isMagic = false;    // 是否进入变色龙模式
+    let stage = 0;          // 0:输入第一数, 1:输入第二数, 2:魔法进行中
 
     const displayEl = document.getElementById('display');
     const historyEl = document.getElementById('history');
 
-    function updateDisplay() {
-        displayEl.innerText = currentInput.includes('.') ? currentInput : parseInt(currentInput).toLocaleString();
-        historyEl.innerText = historyText;
+    function update() {
+        // 主屏幕格式化显示
+        displayEl.innerText = mainVal.includes('.') ? mainVal : Number(mainVal).toLocaleString();
+        // 灰色屏直接显示历史字符串
+        historyEl.innerText = historyVal;
         
-        // 自动缩小字体
-        if (currentInput.length > 7) displayEl.style.fontSize = "50px";
-        else displayEl.style.fontSize = "80px";
+        // 动态调整主屏幕字体大小
+        displayEl.style.fontSize = mainVal.length > 7 ? "55px" : "80px";
     }
 
-    function handleNum(num) {
-        if (isMagicMode) {
-            stepMagic(num);
+    function handleNum(n) {
+        if (isMagic) {
+            triggerMagicStep();
             return;
         }
 
-        if (currentInput === "0") currentInput = num;
-        else currentInput += num;
-        updateDisplay();
+        if (stage === 0) {
+            mainVal = (mainVal === "0") ? n : mainVal + n;
+        } else if (stage === 1) {
+            mainVal = (mainVal === "0") ? n : mainVal + n;
+            secondNum = mainVal;
+        }
+        update();
     }
 
     function handleOp(op) {
-        if (isMagicMode) {
-            stepMagic(op);
+        if (isMagic) {
+            triggerMagicStep();
             return;
         }
 
-        // 记录第一部分 (4位)
-        if (!firstPart && currentInput.length === 4) {
-            firstPart = currentInput;
-            historyText = firstPart + " " + op;
-            currentInput = "0";
+        if (stage === 0 && mainVal.length === 4) {
+            firstNum = mainVal;
+            historyVal = Number(firstNum).toLocaleString() + " " + op;
+            mainVal = "0";
+            stage = 1;
         } 
-        // 触发点：已有第一部分，且当前输入是 5 位，再次按运算符
-        else if (firstPart && currentInput.length === 5 && !hasTriggered) {
-            secondPart = currentInput;
-            historyText = firstPart + " + " + secondPart + " " + op;
+        else if (stage === 1 && mainVal.length === 5) {
+            secondNum = mainVal;
+            // 此时不更新 historyVal，因为要等待魔法模式开启
+            // 计算 A
+            let A_val = 2162227 - (parseInt(firstNum) + parseInt(secondNum));
+            targetA = A_val.toString();
             
-            // 计算核心 A 值
-            let A = 2162227 - (parseInt(firstPart) + parseInt(secondPart));
-            magicA = A.toString();
-            
-            isMagicMode = true;
-            hasTriggered = true;
-            // 此时屏幕依然显示第二个数，符合苹果逻辑
-        } else {
-            // 正常逻辑模拟
-            historyText = currentInput + " " + op;
-            currentInput = "0";
+            // 正式进入变色龙模式
+            isMagic = true;
+            stage = 2;
+            // 此时屏幕依然停留在第二个数，不影响视觉
         }
-        updateDisplay();
+        update();
     }
 
-    // 魔法步进逻辑
-    function stepMagic(fakeChar) {
-        if (magicIndex < magicA.length) {
-            // 第一次按任何键，主显示屏开始显示 A 的第一位
-            if (magicIndex === 0) currentInput = magicA[0];
-            else currentInput += magicA[magicIndex];
+    // 变色龙步进：无论按什么，主屏和历史屏都同步显示 A 的下一位
+    function triggerMagicStep() {
+        if (aPtr < targetA.length) {
+            let nextDigit = targetA[aPtr];
             
-            // 同时，上方的灰色历史记录也要跟着“假装”在输入
-            historyText += " " + fakeChar;
+            if (aPtr === 0) {
+                // 第一次按，主屏切换为 A 的第一位
+                mainVal = nextDigit;
+                // 历史屏开始拼接：第一数 + 第二数 + A的第一位
+                historyVal = Number(firstNum).toLocaleString() + " + " + Number(secondNum).toLocaleString() + " + " + nextDigit;
+            } else {
+                // 后续按键，主屏累加
+                mainVal += nextDigit;
+                // 历史屏同步累加
+                historyVal += nextDigit;
+            }
             
-            magicIndex++;
-            updateDisplay();
+            aPtr++;
+            update();
         }
     }
 
     function calculate() {
-        if (isMagicMode && magicIndex >= magicA.length) {
-            currentInput = "2162227";
-            historyText = ""; // 达成结果后清空上方
-            updateDisplay();
-            isMagicMode = false; // 结束魔法
+        if (isMagic && aPtr >= targetA.length) {
+            mainVal = "2162227";
+            historyVal = ""; // 功德圆满，清空历史
+            isMagic = false;
+            update();
         }
     }
 
-    function fakeKey() {
-        if (isMagicMode) stepMagic('?');
+    // 处理那些非数字非运算符的按键
+    function fakeStep() {
+        if (isMagic) triggerMagicStep();
     }
 
     function reset() {
-        currentInput = "0";
-        historyText = "";
-        firstPart = "";
-        secondPart = "";
-        magicA = "";
-        magicIndex = 0;
-        isMagicMode = false;
-        hasTriggered = false;
-        updateDisplay();
+        mainVal = "0";
+        historyVal = "";
+        firstNum = "";
+        secondNum = "";
+        targetA = "";
+        aPtr = 0;
+        isMagic = false;
+        stage = 0;
+        update();
     }
 </script>
 
