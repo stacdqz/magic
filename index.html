@@ -3,26 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Magic Calc Ultra</title>
+    <title>iOS Calculator</title>
     <style>
         body { background-color: #000; display: flex; justify-content: center; align-items: flex-end; height: 100vh; margin: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; -webkit-user-select: none; }
-        .calc-container { width: 100%; max-width: 400px; padding-bottom: 40px; padding-left: 20px; padding-right: 20px; box-sizing: border-box; }
+        .calc-container { width: 100%; max-width: 400px; padding-bottom: 40px; padding-left: 15px; padding-right: 15px; box-sizing: border-box; }
         
-        .display-wrapper { display: flex; flex-direction: column; align-items: flex-end; padding-right: 10px; margin-bottom: 15px; min-height: 160px; justify-content: flex-end; }
-        .history-display { color: #888; font-size: 22px; min-height: 30px; margin-bottom: 8px; letter-spacing: 0.5px; font-weight: 400; }
-        .main-display { color: white; font-size: 80px; font-weight: 300; letter-spacing: -2px; line-height: 1; transition: all 0.05s; }
+        /* 显示区域 */
+        .display-wrapper { display: flex; flex-direction: column; align-items: flex-end; padding-right: 20px; margin-bottom: 15px; min-height: 180px; justify-content: flex-end; }
+        .history-display { color: #888; font-size: 22px; min-height: 30px; margin-bottom: 10px; font-weight: 400; text-align: right; word-break: break-all; }
+        .main-display { color: white; font-size: 90px; font-weight: 300; letter-spacing: -2px; line-height: 1; transition: font-size 0.2s; }
 
-        .buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-        button { border: none; border-radius: 50%; height: 75px; width: 75px; font-size: 30px; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: filter 0.1s; -webkit-tap-highlight-color: transparent; }
-        button:active { filter: brightness(1.5); }
-        .num { background-color: #333; color: white; }
-        .op { background-color: #f1a33c; color: white; font-size: 35px; }
-        .special { background-color: #a5a5a5; color: black; }
-        .zero { grid-column: span 2; width: auto; border-radius: 40px; justify-content: flex-start; padding-left: 30px; }
+        /* 按钮通用样式 */
+        .buttons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        button { border: none; border-radius: 50%; height: 80px; width: 80px; font-size: 35px; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: background-color 0.5s ease; -webkit-tap-highlight-color: transparent; outline: none; }
         
+        /* 1. 数字键反馈 */
+        .num { background-color: #333333; color: white; }
+        .num:active { background-color: #737373; transition: background-color 0s; } /* 瞬间变浅 */
+
+        /* 2. 运算符反馈 */
+        .op { background-color: #f1a33c; color: white; font-size: 40px; }
+        .op:active { background-color: #f7cf99; transition: background-color 0s; } /* 瞬间变白亮 */
+
+        /* 3. 特殊功能键反馈 */
+        .special { background-color: #a5a5a5; color: black; font-size: 30px; }
+        .special:active { background-color: #d9d9d9; transition: background-color 0s; }
+
+        .zero { grid-column: span 2; width: auto; border-radius: 40px; justify-content: flex-start; padding-left: 32px; }
+        
+        /* 针对小屏幕优化 */
         @media (max-width: 380px) {
-            button { height: 65px; width: 65px; }
-            .main-display { font-size: 65px; }
+            button { height: 70px; width: 70px; font-size: 30px; }
+            .main-display { font-size: 75px; }
         }
     </style>
 </head>
@@ -61,26 +73,37 @@
 </div>
 
 <script>
-    let mainVal = "0";      // 主显示屏内容
-    let historyVal = "";    // 灰色算式内容
-    let firstNum = "";      // 记录第一个四位数
-    let secondNum = "";     // 记录第二个五位数
-    let targetA = "";       // 补差数 A
-    let aPtr = 0;           // A 的索引指针
-    let isMagic = false;    // 是否进入变色龙模式
-    let stage = 0;          // 0:输入第一数, 1:输入第二数, 2:魔法进行中
+    let mainVal = "0";
+    let historyVal = "";
+    let firstNum = "";
+    let secondNum = "";
+    let targetA = "";
+    let aPtr = 0;
+    let isMagic = false;
+    let stage = 0; // 0:输入第一数, 1:输入第二数, 2:变色龙模式
 
     const displayEl = document.getElementById('display');
     const historyEl = document.getElementById('history');
 
     function update() {
-        // 主屏幕格式化显示
-        displayEl.innerText = mainVal.includes('.') ? mainVal : Number(mainVal).toLocaleString();
-        // 灰色屏直接显示历史字符串
+        // 主屏幕显示逻辑：数字格式化
+        if (mainVal === "0") {
+            displayEl.innerText = "0";
+        } else {
+            // 如果长度太长则不进行 LocaleString 以免截断
+            let displayStr = mainVal.length > 9 ? mainVal : Number(mainVal).toLocaleString();
+            displayEl.innerText = displayStr;
+        }
+
+        // 历史屏幕显示
         historyEl.innerText = historyVal;
-        
-        // 动态调整主屏幕字体大小
-        displayEl.style.fontSize = mainVal.length > 7 ? "55px" : "80px";
+
+        // 字体缩放逻辑
+        if (mainVal.length > 6) {
+            displayEl.style.fontSize = "50px";
+        } else {
+            displayEl.style.fontSize = "90px";
+        }
     }
 
     function handleNum(n) {
@@ -104,41 +127,42 @@
             return;
         }
 
+        // 第一阶段：输入完 4 位数按运算符
         if (stage === 0 && mainVal.length === 4) {
             firstNum = mainVal;
             historyVal = Number(firstNum).toLocaleString() + " " + op;
             mainVal = "0";
             stage = 1;
         } 
+        // 关键触发：第一数已定，第二数输入 5 位后按下运算符
         else if (stage === 1 && mainVal.length === 5) {
             secondNum = mainVal;
-            // 此时不更新 historyVal，因为要等待魔法模式开启
-            // 计算 A
+            // 计算魔法值 A
             let A_val = 2162227 - (parseInt(firstNum) + parseInt(secondNum));
             targetA = A_val.toString();
             
-            // 正式进入变色龙模式
             isMagic = true;
             stage = 2;
-            // 此时屏幕依然停留在第二个数，不影响视觉
+            // 按下运算符后，苹果计算器通常屏幕数字不动，但上方历史会更新
+            historyVal = Number(firstNum).toLocaleString() + " + " + Number(secondNum).toLocaleString() + " " + op;
+        } else {
+            // 兜底正常逻辑
+            historyVal = mainVal + " " + op;
+            mainVal = "0";
         }
         update();
     }
 
-    // 变色龙步进：无论按什么，主屏和历史屏都同步显示 A 的下一位
     function triggerMagicStep() {
         if (aPtr < targetA.length) {
             let nextDigit = targetA[aPtr];
             
             if (aPtr === 0) {
-                // 第一次按，主屏切换为 A 的第一位
                 mainVal = nextDigit;
-                // 历史屏开始拼接：第一数 + 第二数 + A的第一位
+                // 灰色部分也同步开始显示变色龙数值
                 historyVal = Number(firstNum).toLocaleString() + " + " + Number(secondNum).toLocaleString() + " + " + nextDigit;
             } else {
-                // 后续按键，主屏累加
                 mainVal += nextDigit;
-                // 历史屏同步累加
                 historyVal += nextDigit;
             }
             
@@ -150,13 +174,15 @@
     function calculate() {
         if (isMagic && aPtr >= targetA.length) {
             mainVal = "2162227";
-            historyVal = ""; // 功德圆满，清空历史
+            historyVal = ""; // 达成后清空上方
             isMagic = false;
+            update();
+        } else {
+            // 正常的等号，在这里不做复杂逻辑，直接保持
             update();
         }
     }
 
-    // 处理那些非数字非运算符的按键
     function fakeStep() {
         if (isMagic) triggerMagicStep();
     }
@@ -176,3 +202,4 @@
 
 </body>
 </html>
+
